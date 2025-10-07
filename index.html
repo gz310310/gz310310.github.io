@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>姓名收集系统</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdn.jsdelivr.net/npm/font-awesome@4.7.0/css/font-awesome.min.css" rel="stylesheet">
+    
+    <!-- 配置Tailwind自定义颜色 -->
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#3B82F6',
+                        success: '#10B981',
+                        error: '#EF4444',
+                    }
+                }
+            }
+        }
+    </script>
+    
+    <style type="text/tailwindcss">
+        @layer utilities {
+            .form-shadow {
+                box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.05), 0 8px 10px -6px rgba(0, 0, 0, 0.02);
+            }
+            .transition-custom {
+                transition: all 0.3s ease;
+            }
+        }
+    </style>
+</head>
+<body class="bg-gradient-to-br from-blue-50 to-indigo-50 min-h-screen flex items-center justify-center p-4">
+    <div class="w-full max-w-md">
+        <!-- 表单卡片 -->
+        <div class="bg-white rounded-2xl p-6 md:p-8 form-shadow">
+            <div class="text-center mb-6">
+                <h1 class="text-[clamp(1.5rem,3vw,2rem)] font-bold text-gray-800 mb-2">
+                    <i class="fa fa-user-circle text-primary mr-2"></i>姓名收集
+                </h1>
+                <p class="text-gray-500">请输入您的信息，系统将安全保存</p>
+            </div>
+            
+            <!-- 姓名表单 -->
+            <form id="nameForm" class="space-y-5">
+                <div>
+                    <label for="fullName" class="block text-sm font-medium text-gray-700 mb-1">
+                        姓名 <span class="text-error">*</span>
+                    </label>
+                    <div class="relative">
+                        <span class="absolute inset-y-0 left-0 flex items-center pl-3 text-gray-500">
+                            <i class="fa fa-user"></i>
+                        </span>
+                        <input 
+                            type="text" 
+                            id="fullName" 
+                            name="fullName" 
+                            required
+                            class="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary/50 focus:border-primary outline-none transition-custom"
+                            placeholder="请输入您的姓名"
+                        >
+                    </div>
+                </div>
+                
+                <div>
+                    <label for="phone" class="block text-sm font-medium text-gray-700 mb-1">
+                        手机号码 (可选)
+                    </label>
+                    <div class="relative">
+                        <span class="absolute inset-y-0 left-0 flex items-center pl-3 text-gray-500">
+                            <i class="fa fa-phone"></i>
+                        </span>
+                        <input 
+                            type="tel" 
+                            id="phone" 
+                            name="phone" 
+                            class="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary/50 focus:border-primary outline-none transition-custom"
+                            placeholder="请输入您的手机号码"
+                        >
+                    </div>
+                </div>
+                
+                <button 
+                    type="submit" 
+                    id="submitBtn"
+                    class="w-full bg-primary hover:bg-primary/90 text-white font-medium py-3 px-4 rounded-lg transition-custom flex items-center justify-center"
+                >
+                    <i class="fa fa-save mr-2"></i>提交信息
+                </button>
+            </form>
+        </div>
+        
+        <!-- 提交历史 -->
+        <div class="mt-6 bg-white rounded-2xl p-5 form-shadow">
+            <h2 class="text-lg font-semibold text-gray-800 mb-3 flex items-center">
+                <i class="fa fa-history text-gray-500 mr-2"></i>最近提交
+            </h2>
+            <div id="historyContainer" class="text-sm max-h-40 overflow-y-auto pr-1">
+                <p class="text-gray-400 italic text-center py-3">暂无提交记录</p>
+            </div>
+        </div>
+    </div>
+    
+    <!-- 状态提示框 -->
+    <div id="toast" class="fixed top-4 right-4 px-5 py-3 rounded-lg shadow-lg transform translate-x-full transition-all duration-300 flex items-center">
+        <i id="toastIcon" class="mr-2"></i>
+        <span id="toastMessage"></span>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const form = document.getElementById('nameForm');
+            const historyContainer = document.getElementById('historyContainer');
+            const toast = document.getElementById('toast');
+            const toastIcon = document.getElementById('toastIcon');
+            const toastMessage = document.getElementById('toastMessage');
+            const submitBtn = document.getElementById('submitBtn');
+            
+            // 加载历史记录
+            loadHistory();
+            
+            // 表单提交事件
+            form.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                
+                // 获取表单数据
+                const fullName = document.getElementById('fullName').value.trim();
+                const phone = document.getElementById('phone').value.trim() || null;
+                
+                // 创建数据对象
+                const data = {
+                    id: Date.now(),
+                    fullName: fullName,
+                    phone: phone,
+                    timestamp: new Date().toISOString()
+                };
+                
+                // 禁用提交按钮防止重复提交
+                submitBtn.disabled = true;
+                submitBtn.innerHTML = '<i class="fa fa-spinner fa-spin mr-2"></i>提交中...';
+                
+                try {
+                    // 上传数据到后台处理文件
+                    const success = await uploadToBackend(data);
+                    
+                    if (success) {
+                        // 保存到本地历史
+                        saveToHistory(data);
+                        
+                        // 重置表单
+                        form.reset();
+                        
+                        // 显示成功提示
+                        showToast('信息已成功提交', 'success');
+                    } else {
+                        showToast('提交失败，请稍后重试', 'error');
+                    }
+                } catch (error) {
+                    console.error('提交错误:', error);
+                    showToast('发生错误，请稍后重试', 'error');
+                } finally {
+                    // 恢复提交按钮状态
+                    submitBtn.disabled = false;
+                    submitBtn.innerHTML = '<i class="fa fa-save mr-2"></i>提交信息';
+                }
+            });
+            
+            // 上传数据到后台处理文件
+            async function uploadToBackend(data) {
+                try {
+                    // 发送数据到后端处理文件
+                    const response = await fetch('save_name.php', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify(data)
+                    });
+                    
+                    const result = await response.json();
+                    return result.success;
+                } catch (error) {
+                    console.error('上传错误:', error);
+                    return false;
+                }
+            }
+            
+            // 保存到本地历史记录
+            function saveToHistory(data) {
+                // 从localStorage获取现有历史
+                const history = JSON.parse(localStorage.getItem('nameSubmissions') || '[]');
+                
+                // 添加新记录到开头
+                history.unshift(data);
+                
+                // 只保留最近10条记录
+                if (history.length > 10) {
+                    history.pop();
+                }
+                
+                // 保存回localStorage
+                localStorage.setItem('nameSubmissions', JSON.stringify(history));
+                
+                // 更新历史记录显示
+                loadHistory();
+            }
+            
+            // 加载并显示历史记录
+            function loadHistory() {
+                const history = JSON.parse(localStorage.getItem('nameSubmissions') || '[]');
+                
+                if (history.length === 0) {
+                    historyContainer.innerHTML = '<p class="text-gray-400 italic text-center py-3">暂无提交记录</p>';
+                    return;
+                }
+                
+                // 生成历史记录HTML
+                historyContainer.innerHTML = history.map(item => `
+                    <div class="border-b border-gray-100 pb-2 mb-2 last:border-0 last:pb-0 last:mb-0">
+                        <div class="font-medium text-gray-800">${item.fullName}</div>
+                        ${item.phone ? `<div class="text-gray-500 text-xs">${item.phone}</div>` : ''}
+                        <div class="text-gray-400 text-xs mt-1">
+                            ${new Date(item.timestamp).toLocaleString()}
+                        </div>
+                    </div>
+                `).join('');
+            }
+            
+            // 显示提示消息
+            function showToast(message, type = 'info') {
+                toastMessage.textContent = message;
+                
+                // 设置图标和样式
+                if (type === 'success') {
+                    toastIcon.className = 'fa fa-check-circle text-success mr-2';
+                    toast.className = 'fixed top-4 right-4 px-5 py-3 rounded-lg shadow-lg bg-white text-success transform translate-x-0 transition-all duration-300 flex items-center';
+                } else if (type === 'error') {
+                    toastIcon.className = 'fa fa-exclamation-circle text-error mr-2';
+                    toast.className = 'fixed top-4 right-4 px-5 py-3 rounded-lg shadow-lg bg-white text-error transform translate-x-0 transition-all duration-300 flex items-center';
+                } else {
+                    toastIcon.className = 'fa fa-info-circle text-primary mr-2';
+                    toast.className = 'fixed top-4 right-4 px-5 py-3 rounded-lg shadow-lg bg-white text-primary transform translate-x-0 transition-all duration-300 flex items-center';
+                }
+                
+                // 3秒后隐藏提示
+                setTimeout(() => {
+                    toast.className = 'fixed top-4 right-4 px-5 py-3 rounded-lg shadow-lg transform translate-x-full transition-all duration-300 flex items-center';
+                }, 3000);
+            }
+        });
+    </script>
+</body>
+</html>
